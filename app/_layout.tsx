@@ -1,6 +1,17 @@
+import "react-native-get-random-values";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { Stack } from "expo-router";
-import { ConvexProvider } from "convex/react";
-import { convex } from "@/convex/client";
+
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+  unsavedChangesWarning: false, 
+});
+
+if (typeof window !== "undefined") {
+  // @ts-ignore
+  window.addEventListener = window.addEventListener || (() => {});
+  // @ts-ignore
+  window.removeEventListener = window.removeEventListener || (() => {});
+}
 
 export default function RootLayout() {
   return (

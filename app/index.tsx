@@ -10,7 +10,7 @@ const { height } = Dimensions.get('window');
 
 export default function App() {
 
-  const products = useQuery(api.products.getProducts);
+  const products = useQuery(api.products.get);
   const loading = products === undefined;
   const items = products ?? [];
 
