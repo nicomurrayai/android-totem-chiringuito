@@ -1,4 +1,3 @@
-import "react-native-get-random-values";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { Stack } from "expo-router";
 

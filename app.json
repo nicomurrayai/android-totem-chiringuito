@@ -46,10 +46,11 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "owner": "nikomurray",
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a4bac8fa-ce77-4f84-b1ae-ad7d71fd410c"
+        "projectId": "368ea1c8-a693-4b07-880b-b536a0c9d213"
       }
     }
   }
