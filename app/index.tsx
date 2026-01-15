@@ -2,73 +2,107 @@ import { FeedItem } from '@/components/FeedItem';
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, StatusBar, StyleSheet, View } from 'react-native';
-
-
+import { 
+  ActivityIndicator, 
+  Dimensions, 
+  FlatList, 
+  StatusBar, 
+  StyleSheet, 
+  View,
+  ViewToken 
+} from 'react-native';
 
 const { height } = Dimensions.get('window');
 
-export default function App() {
+const VIEWABILITY_CONFIG = {
+  itemVisiblePercentThreshold: 80,
+  minimumViewTime: 100,
+};
 
+interface ViewableItemsChangedInfo {
+  viewableItems: ViewToken[];
+  changed: ViewToken[];
+}
+
+export default function App() {
   const products = useQuery(api.products.get);
   const loading = products === undefined;
   const items = products ?? [];
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  
-  // Refs para controlar el scroll
   const flatListRef = useRef<FlatList>(null);
-  const isUserInteracting = useRef(false); // Bandera crítica para interacción manual
+  const isUserInteracting = useRef(false);
+  const currentIndexRef = useRef(0);
 
-
-  // 2. Control de Items Visibles (ViewabilityConfig)
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      setCurrentIndex(viewableItems[0].index);
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: ViewableItemsChangedInfo) => {
+      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
+        const newIndex = viewableItems[0].index;
+        setCurrentIndex(newIndex);
+        currentIndexRef.current = newIndex;
+      }
     }
-  }).current;
+  ).current;
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 80, // El ítem debe verse al 80% para contar como activo
-  }).current;
-
-  // 3. Lógica de avance automático (Llamada desde FeedItem)
   const handleItemFinished = useCallback(() => {
-    // Si el usuario está tocando la pantalla, NO avanzamos
-    if (isUserInteracting.current) return;
+    if (isUserInteracting.current || items.length === 0) return;
 
-    let nextIndex = currentIndex + 1;
-    
-    // Si llegamos al final, volvemos al principio (Loop infinito para Tótem)
-    if (nextIndex >= items.length) {
-      nextIndex = 0;
-    }
+    // Lógica circular: si es el último, vuelve al 0
+    const nextIndex = (currentIndexRef.current + 1) % items.length;
 
     flatListRef.current?.scrollToIndex({
       index: nextIndex,
       animated: true,
     });
-  }, [currentIndex, items.length]);
+  }, [items.length]);
 
-  // 4. Manejadores de Scroll Manual
-  const onScrollBeginDrag = () => {
-    isUserInteracting.current = true; // El usuario puso el dedo
-  };
+  const onScrollBeginDrag = useCallback(() => {
+    isUserInteracting.current = true;
+  }, []);
 
-  const onMomentumScrollEnd = () => {
-    isUserInteracting.current = false; // El scroll inercial terminó
-    // El auto-scroll se reanudará naturalmente cuando el FeedItem actual dispare su onFinish
-  };
+  const onMomentumScrollEnd = useCallback(() => {
+    isUserInteracting.current = false;
+  }, []);
 
-  // 5. Manejo de error de scrollToIndex (común en listas dinámicas)
-  const onScrollToIndexFailed = (info: any) => {
-    const wait = new Promise(resolve => setTimeout(resolve, 500));
-    wait.then(() => {
-      flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
-    });
-  };
+  const onScrollToIndexFailed = useCallback((info: any) => {
+    // Re-intento optimizado
+    setTimeout(() => {
+      flatListRef.current?.scrollToIndex({ 
+        index: info.index, 
+        animated: false // Menos costoso si falló anteriormente
+      });
+    }, 100);
+  }, []);
 
-  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+  const renderItem = useCallback(
+    ({ item, index }: { item: any; index: number }) => (
+      <FeedItem
+        item={item}
+        isVisible={index === currentIndex}
+        onFinish={handleItemFinished}
+      />
+    ),
+    [currentIndex, handleItemFinished]
+  );
+
+  const keyExtractor = useCallback((item: any) => item._id.toString(), []);
+
+  const getItemLayout = useCallback(
+    (_data: any, index: number) => ({
+      length: height,
+      offset: height * index,
+      index,
+    }),
+    []
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#FF4500" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -77,51 +111,32 @@ export default function App() {
       <FlatList
         ref={flatListRef}
         data={items}
-        keyExtractor={(item) => item._id.toString()}
-        renderItem={({ item, index }) => (
-          <FeedItem
-            item={item} 
-            isVisible={index === currentIndex} // Solo el visible reproduce/cuenta tiempo
-            onFinish={handleItemFinished}
-          />
-        )}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
         pagingEnabled
         showsVerticalScrollIndicator={false}
         snapToInterval={height}
         snapToAlignment="start"
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        
-        // Manejo de interacción manual vs automática
+        viewabilityConfig={VIEWABILITY_CONFIG}
         onScrollBeginDrag={onScrollBeginDrag}
         onMomentumScrollEnd={onMomentumScrollEnd}
         onScrollToIndexFailed={onScrollToIndexFailed}
+        getItemLayout={getItemLayout}
         
-        // Optimizaciones de memoria
-        getItemLayout={(data, index) => ({
-          length: height,
-          offset: height * index,
-          index,
-        })}
-        windowSize={3} // Renderiza solo 3 pantallas (prev, current, next)
+        // --- OPTIMIZACIONES DE MEMORIA ---
+        windowSize={2} // Solo mantiene en memoria el actual y el mínimo necesario del siguiente
         initialNumToRender={1}
-        maxToRenderPerBatch={2}
+        maxToRenderPerBatch={1}
         removeClippedSubviews={true}
+        // ---------------------------------
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
-  },
+  container: { flex: 1, backgroundColor: '#000' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
 });

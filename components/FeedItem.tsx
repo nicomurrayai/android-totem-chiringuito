@@ -1,13 +1,16 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef, memo, useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, Pressable, Linking, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
+const IMAGE_DISPLAY_DURATION = 4000;
+// ✨ NUEVO: La URL de la carta
+const MENU_URL = "https://www.lacartaa.com/chiringuito-lounge-517";
 
 type Product = {
-  id: number;
+  _id: string;
   name: string;
   price: number;
   description: string;
@@ -18,129 +21,158 @@ type Product = {
 interface FeedItemProps {
   item: Product;
   isVisible: boolean;
-  onFinish: () => void; // Callback para avisar al padre que avance
+  onFinish: () => void;
 }
 
-export const FeedItem = ({ item, isVisible, onFinish }: FeedItemProps) => {
-  // Configuración para Video (expo-video)
-  const player = useVideoPlayer(item.contentType === 'video' ? item.contentUrl : '', (player) => {
-    player.loop = false; // No loopear, queremos que termine para avanzar
+// SUB-COMPONENTE: Encapsula el reproductor
+const VideoPlayerComponent = ({ url, isVisible, onFinish }: { url: string, isVisible: boolean, onFinish: () => void }) => {
+  const hasCalledOnFinish = useRef(false);
+  
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = false;
   });
 
-  // Lógica de VIDEO
   useEffect(() => {
-    if (item.contentType !== 'video') return;
-
     if (isVisible) {
+      hasCalledOnFinish.current = false;
       player.play();
     } else {
       player.pause();
-      player.currentTime = 0; // Reiniciar si sale de pantalla
+      player.currentTime = 0;
     }
 
-    // Escuchar cuando termina el video
     const subscription = player.addListener('playToEnd', () => {
-      onFinish();
+      if (!hasCalledOnFinish.current && isVisible) {
+        hasCalledOnFinish.current = true;
+        onFinish();
+      }
     });
 
-    return () => subscription.remove();
-  }, [isVisible, item.contentType]);
+    return () => {
+      subscription.remove();
+      player.pause();
+    };
+  }, [isVisible, player, onFinish]);
 
-  // Lógica de IMAGEN
-  useEffect(() => {
-    if (item.contentType !== 'image' || !isVisible) return;
-
-    // Timer para avanzar imagen a los 3 segundos
-    const timer = setTimeout(() => {
-      onFinish();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [isVisible, item.contentType]);
-
-
-  return (
-    <View style={styles.container}>
-      {/* Contenido Multimedia */}
-      {item.contentType === 'video' ? (
-        <VideoView
-          style={styles.media}
-          player={player}
-          nativeControls={false}
-          contentFit="cover"
-        />
-      ) : (
-        <Image
-          source={{ uri: item.contentUrl }}
-          style={styles.media}
-          contentFit="cover"
-          transition={500}
-        />
-      )}
-
-      {/* Overlay Degradado (Sombra) */}
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.8)']}
-        style={styles.overlay}
-      />
-
-      {/* Info del Producto */}
-      <View style={styles.infoContainer}>
-        <View style={styles.priceBadge}>
-          <Text style={styles.priceText}>${item.price}</Text>
-        </View>
-        <Text style={styles.title}>{item.name}</Text>
-        <Text style={styles.description}>{item.description}</Text>
-      </View>
-    </View>
-  );
+  return <VideoView style={styles.media} player={player} nativeControls={false} contentFit="cover" />;
 };
 
+export const FeedItem = memo<FeedItemProps>(
+  ({ item, isVisible, onFinish }) => {
+    // ✨ NUEVO: Estado para mostrar el botón de la carta
+    const [showFullMenuBtn, setShowFullMenuBtn] = useState(false);
+    
+    // Lógica para Imágenes
+    useEffect(() => {
+      if (item.contentType !== 'image' || !isVisible) return;
+
+      const timer = setTimeout(() => {
+        onFinish();
+      }, IMAGE_DISPLAY_DURATION);
+
+      return () => clearTimeout(timer);
+    }, [isVisible, item.contentType, onFinish]);
+
+    // ✨ NUEVO: Función para abrir el link
+    const handleOpenMenu = async () => {
+      const supported = await Linking.canOpenURL(MENU_URL);
+      if (supported) {
+        await Linking.openURL(MENU_URL);
+        setShowFullMenuBtn(false); // Ocultar botón al volver
+      }
+    };
+
+    return (
+      // ✨ NUEVO: Pressable envuelve todo para detectar gestos
+      <Pressable 
+        style={styles.container} 
+        onLongPress={() => setShowFullMenuBtn(true)} // Mantener presionado muestra botón
+        onPress={() => setShowFullMenuBtn(false)}    // Un toque simple lo oculta (si estaba abierto)
+        delayLongPress={500} // Medio segundo para activar
+      >
+        {item.contentType === 'video' ? (
+          <VideoPlayerComponent 
+            url={item.contentUrl} 
+            isVisible={isVisible} 
+            onFinish={onFinish} 
+          />
+        ) : (
+          <Image
+            source={{ uri: item.contentUrl }}
+            style={styles.media}
+            contentFit="cover"
+            transition={300}
+            cachePolicy="disk" 
+          />
+        )}
+
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.9)']}
+          style={styles.overlay}
+        />
+
+        <View style={styles.infoContainer}>
+          <View style={styles.priceBadge}>
+            <Text style={styles.priceText}>${item.price}</Text>
+          </View>
+          <Text style={styles.title}>{item.name}</Text>
+          <Text style={styles.description} numberOfLines={2}>
+            {item.description}
+          </Text>
+        </View>
+
+        {/* ✨ NUEVO: Botón condicional que aparece sobre todo */}
+        {showFullMenuBtn && (
+          <View style={styles.menuOverlay}>
+            <TouchableOpacity style={styles.menuButton} onPress={handleOpenMenu}>
+              <Text style={styles.menuButtonText}>Ver Carta Completa</Text>
+            </TouchableOpacity>
+            <Text style={styles.cancelText}>Toca la pantalla para cerrar</Text>
+          </View>
+        )}
+      </Pressable>
+    );
+  },
+  (prev, next) => prev.isVisible === next.isVisible && prev.item._id === next.item._id
+);
+
 const styles = StyleSheet.create({
-  container: {
-    width: width,
-    height: height,
+  container: { width, height, backgroundColor: '#000' },
+  media: { width: '100%', height: '100%' },
+  overlay: { position: 'absolute', bottom: 0, width: '100%', height: '50%' },
+  infoContainer: { position: 'absolute', bottom: 60, left: 20, right: 20 },
+  priceBadge: { backgroundColor: '#FF4500', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 15, alignSelf: 'flex-start', marginBottom: 10 },
+  priceText: { color: '#FFF', fontWeight: '900', fontSize: 20 },
+  title: { color: '#FFF', fontSize: 34, fontWeight: 'bold' },
+  description: { color: '#CCC', fontSize: 16, marginTop: 5 },
+
+  // ✨ NUEVO: Estilos para el overlay del botón
+  menuOverlay: {
+    ...StyleSheet.absoluteFillObject, // Cubre toda la pantalla
+    backgroundColor: 'rgba(0,0,0,0.7)', // Fondo semitransparente oscuro
     justifyContent: 'center',
-    backgroundColor: '#000',
+    alignItems: 'center',
+    zIndex: 10,
   },
-  media: {
-    width: '100%',
-    height: '100%',
+  menuButton: {
+    backgroundColor: '#FF4500',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 30,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
   },
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '40%', // El degradado ocupa el 40% inferior
-  },
-  infoContainer: {
-    position: 'absolute',
-    bottom: 50,
-    left: 20,
-    right: 20,
-  },
-  priceBadge: {
-    backgroundColor: '#FF4500', // Naranja tipo la imagen
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  priceText: {
+  menuButtonText: {
     color: '#FFF',
+    fontSize: 22,
     fontWeight: 'bold',
-    fontSize: 18,
   },
-  title: {
-    color: '#FFF',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  description: {
-    color: '#DDD',
-    fontSize: 16,
-  },
+  cancelText: {
+    color: '#AAA',
+    marginTop: 20,
+    fontSize: 14,
+  }
 });
