@@ -4,9 +4,9 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 
+// Obtener dimensiones de ventana (no de pantalla)
 const { width, height } = Dimensions.get('window');
 const IMAGE_DISPLAY_DURATION = 4000;
-// ✨ NUEVO: La URL de la carta
 const MENU_URL = "https://www.lacartaa.com/chiringuito-lounge-517";
 
 type Product = {
@@ -24,7 +24,6 @@ interface FeedItemProps {
   onFinish: () => void;
 }
 
-// SUB-COMPONENTE: Encapsula el reproductor
 const VideoPlayerComponent = ({ url, isVisible, onFinish }: { url: string, isVisible: boolean, onFinish: () => void }) => {
   const hasCalledOnFinish = useRef(false);
   
@@ -59,10 +58,8 @@ const VideoPlayerComponent = ({ url, isVisible, onFinish }: { url: string, isVis
 
 export const FeedItem = memo<FeedItemProps>(
   ({ item, isVisible, onFinish }) => {
-    // ✨ NUEVO: Estado para mostrar el botón de la carta
     const [showFullMenuBtn, setShowFullMenuBtn] = useState(false);
     
-    // Lógica para Imágenes
     useEffect(() => {
       if (item.contentType !== 'image' || !isVisible) return;
 
@@ -73,22 +70,20 @@ export const FeedItem = memo<FeedItemProps>(
       return () => clearTimeout(timer);
     }, [isVisible, item.contentType, onFinish]);
 
-    // ✨ NUEVO: Función para abrir el link
     const handleOpenMenu = async () => {
       const supported = await Linking.canOpenURL(MENU_URL);
       if (supported) {
         await Linking.openURL(MENU_URL);
-        setShowFullMenuBtn(false); // Ocultar botón al volver
+        setShowFullMenuBtn(false);
       }
     };
 
     return (
-      // ✨ NUEVO: Pressable envuelve todo para detectar gestos
       <Pressable 
         style={styles.container} 
-        onLongPress={() => setShowFullMenuBtn(true)} // Mantener presionado muestra botón
-        onPress={() => setShowFullMenuBtn(false)}    // Un toque simple lo oculta (si estaba abierto)
-        delayLongPress={500} // Medio segundo para activar
+        onLongPress={() => setShowFullMenuBtn(true)}
+        onPress={() => setShowFullMenuBtn(false)}
+        delayLongPress={500}
       >
         {item.contentType === 'video' ? (
           <VideoPlayerComponent 
@@ -121,7 +116,6 @@ export const FeedItem = memo<FeedItemProps>(
           </Text>
         </View>
 
-        {/* ✨ NUEVO: Botón condicional que aparece sobre todo */}
         {showFullMenuBtn && (
           <View style={styles.menuOverlay}>
             <TouchableOpacity style={styles.menuButton} onPress={handleOpenMenu}>
@@ -133,23 +127,61 @@ export const FeedItem = memo<FeedItemProps>(
       </Pressable>
     );
   },
+  // REVERTIDO: Comparación eficiente estándar
   (prev, next) => prev.isVisible === next.isVisible && prev.item._id === next.item._id
 );
 
 const styles = StyleSheet.create({
-  container: { width, height, backgroundColor: '#000' },
-  media: { width: '100%', height: '100%' },
-  overlay: { position: 'absolute', bottom: 0, width: '100%', height: '50%' },
-  infoContainer: { position: 'absolute', bottom: 60, left: 20, right: 20 },
-  priceBadge: { backgroundColor: '#FF4500', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 15, alignSelf: 'flex-start', marginBottom: 10 },
-  priceText: { color: '#FFF', fontWeight: '900', fontSize: 20 },
-  title: { color: '#FFF', fontSize: 34, fontWeight: 'bold' },
-  description: { color: '#CCC', fontSize: 16, marginTop: 5 },
-
-  // ✨ NUEVO: Estilos para el overlay del botón
+  container: { 
+    width, 
+    height, 
+    backgroundColor: '#000',
+  },
+  media: { 
+    width: '100%', 
+    height: '100%',
+    position: 'absolute', 
+    top: 0,
+    left: 0,
+  },
+  overlay: { 
+    position: 'absolute', 
+    bottom: 0, 
+    width: '100%', 
+    height: '50%' 
+  },
+  infoContainer: { 
+    position: 'absolute', 
+    bottom: 60, 
+    left: 20, 
+    right: 20 
+  },
+  priceBadge: { 
+    backgroundColor: '#FF4500', 
+    paddingHorizontal: 12, 
+    paddingVertical: 4, 
+    borderRadius: 15, 
+    alignSelf: 'flex-start', 
+    marginBottom: 10 
+  },
+  priceText: { 
+    color: '#FFF', 
+    fontWeight: '900', 
+    fontSize: 20 
+  },
+  title: { 
+    color: '#FFF', 
+    fontSize: 34, 
+    fontWeight: 'bold' 
+  },
+  description: { 
+    color: '#CCC', 
+    fontSize: 16, 
+    marginTop: 5 
+  },
   menuOverlay: {
-    ...StyleSheet.absoluteFillObject, // Cubre toda la pantalla
-    backgroundColor: 'rgba(0,0,0,0.7)', // Fondo semitransparente oscuro
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
