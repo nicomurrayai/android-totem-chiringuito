@@ -18,18 +18,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "package": "com.nicomurray.totemchiringuito",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "statusBar": {
-        "translucent": true,
-        "backgroundColor": "#00000000",
-        "barStyle": "light-content"
-      },
-      "navigationBar": {
-        "visible": "immersive",
-        "backgroundColor": "#00000000"
-      }
+      "package": "com.nicomurray.totemchiringuito"
     },
     "web": {
       "output": "static",
