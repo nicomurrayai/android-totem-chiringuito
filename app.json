@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "totem-chiringuito",
-    "slug": "totem-chiringuito",
+    "name": "totem-chiringuito-v2",
+    "slug": "totem-chiringuito-v2",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
